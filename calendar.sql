@@ -20,6 +20,7 @@ CREATE TABLE [dbo].[Calendar]
     [W] [smallint] NOT NULL,
     [D] [smallint] NOT NULL,
     [DW] [smallint] NOT NULL,
+    [BD] [smallint] NULL,
     [BDM] [smallint] NULL,
     [YYYYMM] [int] NOT NULL,
     [YYYYMMDD] int NOT NULL CONSTRAINT uq_dbo_Calendar_YYYYMMDD UNIQUE,
@@ -115,7 +116,7 @@ GO
 
 /* update business day counter */
 UPDATE c
-SET BDM = bd.BusinessDayNum
+SET BD = bd.BusinessDayNum
 FROM Calendar c
     INNER JOIN  (
                 SELECT 
@@ -138,7 +139,7 @@ FROM Calendar c
                     MIN(CalendarDate) FirstBusinessDayOfMonth,
                     MAX(CalendarDate) LastBusinessDayOfMonth
                 FROM Calendar
-                WHERE BDM IS NOT NULL
+                WHERE BD IS NOT NULL
                 GROUP BY YYYYMM
                 ) bd
         ON c.YYYYMM = bd.YYYYMM
@@ -156,7 +157,7 @@ FROM Calendar c
                     MIN(CalendarDate) FirstBusinessDayOfQuarter,
                     MAX(CalendarDate) LastBusinessDayOfQuarter
                 FROM Calendar
-                WHERE BDM IS NOT NULL
+                WHERE BD IS NOT NULL
                 GROUP BY Y,Q
                 ) bd
         ON c.Y = bd.Y
@@ -174,10 +175,14 @@ FROM Calendar c
                     MIN(CalendarDate) FirstBusinessDayOfYear,
                     MAX(CalendarDate) LastBusinessDayOfYear
                 FROM Calendar
-                WHERE BDM IS NOT NULL
+                WHERE BD IS NOT NULL
                 GROUP BY Y
                 ) bd
         ON c.Y = bd.Y
+GO
+
+UPDATE Calendar
+SET BDM = SQL#.Date_BusinessDays(FirstDayOfMonth,LastDayOfMonth,234946559)
 GO
 
 /* make columns not null */
@@ -187,4 +192,6 @@ ALTER TABLE Calendar ALTER COLUMN FirstBusinessDayOfQuarter date NOT NULL;
 ALTER TABLE Calendar ALTER COLUMN LastBusinessDayOfQuarter date NOT NULL;
 ALTER TABLE Calendar ALTER COLUMN FirstBusinessDayOfYear date NOT NULL;
 ALTER TABLE Calendar ALTER COLUMN LastBusinessDayOfYear date NOT NULL;
+ALTER TABLE Calendar ALTER COLUMN BDM smallint NOT NULL;
 GO
+
