@@ -73,7 +73,7 @@ INSERT INTO Calendar
 SELECT
     CalendarDate = DatetimeVal,
     IsWeekend = IIF(SQL#.Date_Extract('ISODOW',DatetimeVal) > 5,1,0),
-    IsHoliday = IIF(SQL#.Date_IsBusinessDay(DatetimeVal,234946556) = 0,1,0),
+    IsHoliday = IIF(SQL#.Date_IsBusinessDay(DatetimeVal,234942460) = 0,1,0),
     IsLeapYear = SQL#.Date_IsLeapYear(YEAR(DatetimeVal)),
     Y = YEAR(DatetimeVal),
     Q = SQL#.Date_Extract('Quarter',DatetimeVal),
@@ -102,7 +102,6 @@ SELECT
         WHEN SQL#.Date_IsBusinessDay(DatetimeVal,512) = 0 THEN 'Independence Day'
         WHEN SQL#.Date_IsBusinessDay(DatetimeVal,1024) = 0 THEN 'Labor Day'
         WHEN SQL#.Date_IsBusinessDay(DatetimeVal,2048) = 0 THEN 'Thanksgiving Day'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,4096) = 0 THEN 'Thanksgiving Day'
         WHEN SQL#.Date_IsBusinessDay(DatetimeVal,8192) = 0 THEN 'Christmas'
         WHEN SQL#.Date_IsBusinessDay(DatetimeVal,16384) = 0 THEN 'Christmas'
         WHEN SQL#.Date_IsBusinessDay(DatetimeVal,32768) = 0 THEN 'Christmas'
@@ -123,7 +122,7 @@ FROM Calendar c
                     DatetimeVal CalendarDate,
                      ROW_NUMBER() OVER(PARTITION BY CAST(LEFT(CAST(SQL#.Date_GetIntDate(DatetimeVal) AS char(8)),6) AS int) ORDER BY DatetimeVal) BusinessDayNum
                 FROM SQL#.Util_GenerateDateTimeRange('1/1/1900','12/31/2099',1,'day')
-                WHERE SQL#.Date_IsBusinessDay(DatetimeVal,234946559) = 1  -- include Sat & Sun
+                WHERE SQL#.Date_IsBusinessDay(DatetimeVal,234942463) = 1  -- include Sat & Sun
                 ) bd
         ON c.CalendarDate = bd.CalendarDate;
 GO
@@ -182,7 +181,7 @@ FROM Calendar c
 GO
 
 UPDATE Calendar
-SET BDM = SQL#.Date_BusinessDays(FirstDayOfMonth,LastDayOfMonth,234946559)
+SET BDM = SQL#.Date_BusinessDays(FirstDayOfMonth,LastDayOfMonth,234942463)
 GO
 
 /* make columns not null */
@@ -195,3 +194,36 @@ ALTER TABLE Calendar ALTER COLUMN LastBusinessDayOfYear date NOT NULL;
 ALTER TABLE Calendar ALTER COLUMN BDM smallint NOT NULL;
 GO
 
+/* Add metadata */
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = N'Utility calendar table with dates from 1/1/1900 to 12/31/2999.  The table and columns are pretty self explanatory, except for the logic for the holidays.  The table identifies these holidays: New Years Day, Martin Luther King Jr Day, Memorial Day, Independence Day, Labor Day, Veterans Day, Thanksgiving, Christmas.', @level0type = N'SCHEMA', @level0name = 'dbo', @level1type = N'TABLE',  @level1name = 'Calendar';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Calendar Date (without time) - Primary Key',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'CalendarDate';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Is Calendar Date a weekend (Saturday - Sunday) - 0: No, 1: Yes',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'IsWeekend';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Is Calendar Date a holiday (based on US Bank Holiday schedule) - 0: No, 1: Yes',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'IsHoliday';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Is the year of Calendar Date a Leap Year - 0: No, 1: Yes',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'IsLeapYear';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Year number of Calendar Date',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'Y';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Quarter number of Calendar Date (1-4)',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'Q';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Month number of Calendar Date (1-12)',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'M';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Week number of Calendar Date (1-53)',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'W';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Day number of month (1-31)',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'D';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Day of week number within week (1-7)',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'DW';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Business day number within month (1-31)',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'BD';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Number of business days in month (1-31)',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'BDM';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Calendar Date in numeric YYYYMM format',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'YYYYMM';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Calendar Date in numeric YYYYMMDD format',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'YYYYMMDD';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Name of month in English',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'MonthName';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Name of day in English',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'DayName';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Date of the first day of the month',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'FirstDayOfMonth';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Date of the last day of the month',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'LastDayOfMonth';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Date of the first business day of the month',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'FirstBusinessDayOfMonth';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Date of the last business day of the month',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'LastBusinessDayOfMonth';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Date of the first day of the quarter',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'FirstDayOfQuarter';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Date of the last day of the quarter',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'LastDayOfQuarter';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Date of the first business day of the quarter',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'FirstBusinessDayOfQuarter';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Date of the last business day of the quarter',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'LastBusinessDayOfQuarter';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Date of the first day of the year',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'FirstDayOfYear';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Date of the last day of the year',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'LastDayOfYear';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Date of the first business day of the year',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'FirstBusinessDayOfYear';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Date of the last business day of the year',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'LastBusinessDayOfYear';
+EXEC sp_addextendedproperty @name = N'MS_Description', @value = 'Name of the holiday if Calendar Date is a holiday',@level0type = N'Schema', @level0name = 'dbo',@level1type = N'Table',  @level1name = 'Calendar',@level2type = N'Column', @level2name = 'HolidayName';
+
+GO

@@ -5,4 +5,5 @@ This script drops and creates a Calendar table used for reporting purposes or an
 
 The load script loads all dates from 1/1/1900 to 12/31/2099.  It also heavily relies on a CLR library from [http://www.sqlsharp.com](http://www.sqlsharp.com "http://www.sqlsharp.com") to load the different date elements.
 
+The Holiday schedule bitmask used in the sql script can be calculated based on the Holiday matrix in the SQLsharp_Date_BusinessDays.xls document.
  
