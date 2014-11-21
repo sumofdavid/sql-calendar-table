@@ -73,7 +73,7 @@ INSERT INTO Calendar
 SELECT
     CalendarDate = DatetimeVal,
     IsWeekend = IIF(SQL#.Date_Extract('ISODOW',DatetimeVal) > 5,1,0),
-    IsHoliday = IIF(SQL#.Date_IsBusinessDay(DatetimeVal,234942460) = 0,1,0),
+    IsHoliday = IIF(SQL#.Date_IsBusinessDay(DatetimeVal,260108284) = 0,1,0),
     IsLeapYear = SQL#.Date_IsLeapYear(YEAR(DatetimeVal)),
     Y = YEAR(DatetimeVal),
     Q = SQL#.Date_Extract('Quarter',DatetimeVal),
@@ -108,6 +108,8 @@ SELECT
         WHEN SQL#.Date_IsBusinessDay(DatetimeVal,33554432) = 0 THEN 'Veterans Day'
         WHEN SQL#.Date_IsBusinessDay(DatetimeVal,67108864) = 0 THEN 'Veterans Day'
         WHEN SQL#.Date_IsBusinessDay(DatetimeVal,134217728) = 0 THEN 'Veterans Day'
+        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,8388608) = 0 THEN 'Presidents Day'
+        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,16777216) = 0 THEN 'Columbus Day'
         ELSE NULL
     END
 FROM SQL#.Util_GenerateDateTimeRange('1/1/1900','12/31/2099',1,'day');
@@ -122,7 +124,7 @@ FROM Calendar c
                     DatetimeVal CalendarDate,
                      ROW_NUMBER() OVER(PARTITION BY CAST(LEFT(CAST(SQL#.Date_GetIntDate(DatetimeVal) AS char(8)),6) AS int) ORDER BY DatetimeVal) BusinessDayNum
                 FROM SQL#.Util_GenerateDateTimeRange('1/1/1900','12/31/2099',1,'day')
-                WHERE SQL#.Date_IsBusinessDay(DatetimeVal,234942463) = 1  -- include Sat & Sun
+                WHERE SQL#.Date_IsBusinessDay(DatetimeVal,260108287) = 1  -- include Sat & Sun
                 ) bd
         ON c.CalendarDate = bd.CalendarDate;
 GO
@@ -181,7 +183,7 @@ FROM Calendar c
 GO
 
 UPDATE Calendar
-SET BDM = SQL#.Date_BusinessDays(FirstDayOfMonth,LastDayOfMonth,234942463)
+SET BDM = SQL#.Date_BusinessDays(FirstDayOfMonth,LastDayOfMonth,260108287)
 GO
 
 /* make columns not null */
