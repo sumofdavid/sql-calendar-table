@@ -3,7 +3,7 @@ SET QUOTED_IDENTIFIER ON
 SET ANSI_PADDING ON
 GO
 
-IF EXISTS(SELECT OBJECT_ID('dbo.Calendar','U'))
+IF EXISTS(SELECT 1 FROM sys.objects WHERE [name] = 'Calendar' AND [schema_id] = 1)
     BEGIN
         DROP TABLE dbo.Calendar;
     END
@@ -43,7 +43,7 @@ CREATE TABLE [dbo].[Calendar]
     (
 	    [CalendarDate] ASC
     )WITH (DATA_COMPRESSION = PAGE)
-)
+);
 GO
 
 INSERT INTO Calendar
@@ -73,7 +73,7 @@ INSERT INTO Calendar
 SELECT
     CalendarDate = DatetimeVal,
     IsWeekend = IIF(SQL#.Date_Extract('ISODOW',DatetimeVal) > 5,1,0),
-    IsHoliday = IIF(SQL#.Date_IsBusinessDay(DatetimeVal,260108284) = 0,1,0),
+    IsHoliday = IIF(SQL#.Date_IsBusinessDay(DatetimeVal,260108156) = 0,1,0),
     IsLeapYear = SQL#.Date_IsLeapYear(YEAR(DatetimeVal)),
     Y = YEAR(DatetimeVal),
     Q = SQL#.Date_Extract('Quarter',DatetimeVal),
@@ -97,7 +97,6 @@ SELECT
         WHEN SQL#.Date_IsBusinessDay(DatetimeVal,16) = 0 THEN 'New Year''s Day'
         WHEN SQL#.Date_IsBusinessDay(DatetimeVal,32) = 0 THEN 'Martin Luther King Jr. Day'
         WHEN SQL#.Date_IsBusinessDay(DatetimeVal,64) = 0 THEN 'Memorial Day'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,128) = 0 THEN 'Independence Day'
         WHEN SQL#.Date_IsBusinessDay(DatetimeVal,256) = 0 THEN 'Independence Day'
         WHEN SQL#.Date_IsBusinessDay(DatetimeVal,512) = 0 THEN 'Independence Day'
         WHEN SQL#.Date_IsBusinessDay(DatetimeVal,1024) = 0 THEN 'Labor Day'
@@ -124,7 +123,7 @@ FROM Calendar c
                     DatetimeVal CalendarDate,
                      ROW_NUMBER() OVER(PARTITION BY CAST(LEFT(CAST(SQL#.Date_GetIntDate(DatetimeVal) AS char(8)),6) AS int) ORDER BY DatetimeVal) BusinessDayNum
                 FROM SQL#.Util_GenerateDateTimeRange('1/1/1900','12/31/2099',1,'day')
-                WHERE SQL#.Date_IsBusinessDay(DatetimeVal,260108287) = 1  -- include Sat & Sun
+                WHERE SQL#.Date_IsBusinessDay(DatetimeVal,260108159) = 1  -- include Sat & Sun
                 ) bd
         ON c.CalendarDate = bd.CalendarDate;
 GO
@@ -183,7 +182,7 @@ FROM Calendar c
 GO
 
 UPDATE Calendar
-SET BDM = SQL#.Date_BusinessDays(FirstDayOfMonth,LastDayOfMonth,260108287)
+SET BDM = SQL#.Date_BusinessDays(FirstDayOfMonth,LastDayOfMonth,260108159) -- include sat & sun
 GO
 
 /* make columns not null */
