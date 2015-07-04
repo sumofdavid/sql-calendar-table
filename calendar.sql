@@ -1,199 +1,259 @@
-SET ANSI_NULLS ON
-SET QUOTED_IDENTIFIER ON
-SET ANSI_PADDING ON
-GO
+SET NUMERIC_ROUNDABORT OFF;
+SET ANSI_PADDING, ANSI_WARNINGS, CONCAT_NULL_YIELDS_NULL, ARITHABORT, QUOTED_IDENTIFIER, ANSI_NULLS ON;
+SET XACT_ABORT ON;
 
-IF EXISTS(SELECT 1 FROM sys.objects WHERE [name] = 'Calendar' AND [schema_id] = 1)
+-- ##########################################################
+-- Change version ##.##.## upon each and every change
+-- ##########################################################
+DECLARE @script nvarchar(100) = N'calendar version',
+        @version nvarchar(100) = N'01.00.00',
+        @ext_version nvarchar(100);
+
+IF NOT EXISTS(SELECT 1 FROM sys.fn_listextendedproperty(NULL,NULL,NULL,NULL,NULL,NULL,NULL) WHERE [name] = @script)
     BEGIN
-        DROP TABLE dbo.Calendar;
+        EXEC sys.sp_addextendedproperty @name = @script, @value = @version;
     END
-
-CREATE TABLE [dbo].[Calendar]
-(
-    [CalendarDate] [date] NOT NULL,
-    [IsWeekend] [bit] NOT NULL CONSTRAINT df_dbo_Calendar_IsWeekend DEFAULT (0),
-    [IsHoliday] [bit] NOT NULL CONSTRAINT df_dbo_Calendar_IsHoliday DEFAULT (0),
-    [IsLeapYear] bit NOT NULL,
-    [Y] [smallint] NOT NULL,
-    [Q] [smallint] NOT NULL,
-    [M] [smallint] NOT NULL,
-    [W] [smallint] NOT NULL,
-    [D] [smallint] NOT NULL,
-    [DW] [smallint] NOT NULL,
-    [BD] [smallint] NULL,
-    [BDM] [smallint] NULL,
-    [YYYYMM] [int] NOT NULL,
-    [YYYYMMDD] int NOT NULL CONSTRAINT uq_dbo_Calendar_YYYYMMDD UNIQUE,
-    [MonthName] [varchar](15) NOT NULL,
-    [DayName] [varchar](15) NOT NULL,
-    [FirstDayOfMonth] [date] NOT NULL,
-    [LastDayOfMonth] [date] NOT NULL,
-    [FirstBusinessDayOfMonth] date NULL,
-    [LastBusinessDayOfMonth] date NULL,
-    [FirstDayOfQuarter] [date] NOT NULL,
-    [LastDayOfQuarter] [date] NOT NULL,
-    [FirstBusinessDayOfQuarter] [date] NULL,
-    [LastBusinessDayOfQuarter] [date] NULL,
-    [FirstDayOfYear] [date] NOT NULL,
-    [LastDayOfYear] [date] NOT NULL,
-    [FirstBusinessDayOfYear] [date] NULL,
-    [LastBusinessDayOfYear] [date] NULL,
-    [HolidayName] varchar(100) NULL
-    CONSTRAINT [PK_CALENDAR] PRIMARY KEY CLUSTERED 
-    (
-	    [CalendarDate] ASC
-    )WITH (DATA_COMPRESSION = PAGE)
-);
-GO
-
-INSERT INTO Calendar
-(
-    CalendarDate,
-    IsWeekend,
-    IsHoliday,
-    IsLeapYear,
-    Y,
-    Q,
-    M,
-    W,
-    D,
-    DW,
-    YYYYMM,
-    YYYYMMDD,
-    [MonthName],
-    [DayName],
-    FirstDayOfMonth,
-    LastDayOfMonth,
-    FirstDayOfQuarter,
-    LastDayOfQuarter,
-    FirstDayOfYear,
-    LastDayOfYear,
-    HolidayName
-)
-SELECT
-    CalendarDate = DatetimeVal,
-    IsWeekend = IIF(SQL#.Date_Extract('ISODOW',DatetimeVal) > 5,1,0),
-    IsHoliday = IIF(SQL#.Date_IsBusinessDay(DatetimeVal,260108156) = 0,1,0),
-    IsLeapYear = SQL#.Date_IsLeapYear(YEAR(DatetimeVal)),
-    Y = YEAR(DatetimeVal),
-    Q = SQL#.Date_Extract('Quarter',DatetimeVal),
-    M = SQL#.Date_Extract('Month',DatetimeVal),
-    W = SQL#.Date_Extract('Week',DatetimeVal),
-    D = SQL#.Date_Extract('Day',DatetimeVal),
-    DW = SQL#.Date_Extract('Weekday',DatetimeVal),
-    YYYYMM = CAST(LEFT(CAST(SQL#.Date_GetIntDate(DatetimeVal) AS char(8)),6) AS int),
-    YYYYMMDD = SQL#.Date_GetIntDate(DatetimeVal),
-    [MonthName] = DATENAME(month,DatetimeVal),
-    [DayName] = DATENAME(weekday,DatetimeVal),
-    FirstDayOfMonth = CAST(SQL#.Date_FirstDayOfMonth(DatetimeVal,0,0,0,0) AS date),
-    LastDayOfMonth = CAST(SQL#.Date_LastDayOfMonth(DatetimeVal,0,0,0,0) AS date),
-    FirstDayOfQuarter = CAST(DATEADD(qq,DATEDIFF(qq,0,DatetimeVal),0) AS date),
-    LastDayOfQuarter = CAST(DATEADD(qq,DATEDIFF(qq,-1,DatetimeVal),-1) AS date),
-    FirstDayOfYear = CAST(SQL#.Date_NewDateTime(YEAR(DatetimeVal),1,1,0,0,0,0) AS date),
-    LastDayOfYear = CAST(SQL#.Date_NewDateTime(YEAR(DatetimeVal),12,31,0,0,0,0) AS date),
-    HolidayName = CASE
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,4) = 0 THEN 'New Year''s Day'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,8) = 0 THEN 'New Year''s Day'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,16) = 0 THEN 'New Year''s Day'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,32) = 0 THEN 'Martin Luther King Jr. Day'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,64) = 0 THEN 'Memorial Day'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,256) = 0 THEN 'Independence Day'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,512) = 0 THEN 'Independence Day'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,1024) = 0 THEN 'Labor Day'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,2048) = 0 THEN 'Thanksgiving Day'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,8192) = 0 THEN 'Christmas'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,16384) = 0 THEN 'Christmas'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,32768) = 0 THEN 'Christmas'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,33554432) = 0 THEN 'Veterans Day'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,67108864) = 0 THEN 'Veterans Day'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,134217728) = 0 THEN 'Veterans Day'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,8388608) = 0 THEN 'Presidents Day'
-        WHEN SQL#.Date_IsBusinessDay(DatetimeVal,16777216) = 0 THEN 'Columbus Day'
-        ELSE NULL
+ELSE
+    BEGIN
+        SELECT @ext_version = CONVERT(nvarchar(100),value) FROM sys.fn_listextendedproperty(NULL,NULL,NULL,NULL,NULL,NULL,NULL) WHERE [name] = @script;
+        IF @ext_version <> @version
+            BEGIN
+                RAISERROR(N'You must run upgrade script or drop audit objects',20,1) WITH LOG;
+            END
+        ELSE
+            BEGIN
+                RAISERROR(N'You can''t rerun this script without dropping objects first',20,1) WITH LOG;
+            END
     END
-FROM SQL#.Util_GenerateDateTimeRange('1/1/1900','12/31/2099',1,'day');
+   
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+BEGIN TRY
+
+        /* find out if somebody has bound an object to the table first */
+        IF EXISTS   (
+                    SELECT 1
+                    FROM sys.sql_expression_dependencies d 
+                        INNER JOIN sys.all_columns cc 
+                            ON d.referenced_minor_id = cc.column_id AND d.referenced_id = cc.[object_id]
+                        INNER JOIN sys.objects o 
+                            ON d.referencing_id = o.[object_id]
+                    WHERE d.is_schema_bound_reference = 1
+                    AND d.referenced_entity_name = 'Calendar'
+                    )
+            BEGIN
+                RAISERROR(N'You can''t run this script because Calendar is schema bound to user objects.',20,1) WITH LOG;
+            END
+
+        IF EXISTS(SELECT 1 FROM sys.objects WHERE [name] = 'Calendar' AND [schema_id] = 1)
+            BEGIN
+                DROP TABLE dbo.Calendar;
+            END
+
+        CREATE TABLE [dbo].[Calendar]
+        (
+            [CalendarDate] [date] NOT NULL,
+            [IsWeekend] [bit] NOT NULL CONSTRAINT df_dbo_Calendar_IsWeekend DEFAULT (0),
+            [IsHoliday] [bit] NOT NULL CONSTRAINT df_dbo_Calendar_IsHoliday DEFAULT (0),
+            [IsLeapYear] bit NOT NULL,
+            [Y] [smallint] NOT NULL,
+            [Q] [smallint] NOT NULL,
+            [M] [smallint] NOT NULL,
+            [W] [smallint] NOT NULL,
+            [D] [smallint] NOT NULL,
+            [DW] [smallint] NOT NULL,
+            [BD] [smallint] NULL,
+            [BDM] [smallint] NULL,
+            [YYYYMM] [int] NOT NULL,
+            [YYYYMMDD] int NOT NULL CONSTRAINT uq_dbo_Calendar_YYYYMMDD UNIQUE,
+            [MonthName] [varchar](15) NOT NULL,
+            [DayName] [varchar](15) NOT NULL,
+            [FirstDayOfMonth] [date] NOT NULL,
+            [LastDayOfMonth] [date] NOT NULL,
+            [FirstBusinessDayOfMonth] date NULL,
+            [LastBusinessDayOfMonth] date NULL,
+            [FirstDayOfQuarter] [date] NOT NULL,
+            [LastDayOfQuarter] [date] NOT NULL,
+            [FirstBusinessDayOfQuarter] [date] NULL,
+            [LastBusinessDayOfQuarter] [date] NULL,
+            [FirstDayOfYear] [date] NOT NULL,
+            [LastDayOfYear] [date] NOT NULL,
+            [FirstBusinessDayOfYear] [date] NULL,
+            [LastBusinessDayOfYear] [date] NULL,
+            [HolidayName] varchar(100) NULL
+            CONSTRAINT [PK_CALENDAR] PRIMARY KEY CLUSTERED 
+            (
+	            [CalendarDate] ASC
+            )WITH (DATA_COMPRESSION = PAGE)
+        );
+
+        INSERT INTO Calendar
+        (
+            CalendarDate,
+            IsWeekend,
+            IsHoliday,
+            IsLeapYear,
+            Y,
+            Q,
+            M,
+            W,
+            D,
+            DW,
+            YYYYMM,
+            YYYYMMDD,
+            [MonthName],
+            [DayName],
+            FirstDayOfMonth,
+            LastDayOfMonth,
+            FirstDayOfQuarter,
+            LastDayOfQuarter,
+            FirstDayOfYear,
+            LastDayOfYear,
+            HolidayName
+        )
+        SELECT
+            CalendarDate = DatetimeVal,
+            IsWeekend = CASE WHEN SQL#.Date_Extract('ISODOW',DatetimeVal) > 5 THEN 1 ELSE 0 END,
+            IsHoliday = CASE WHEN SQL#.Date_IsBusinessDay(DatetimeVal,260108156) = 0 THEN 1 ELSE 0 END,
+            IsLeapYear = SQL#.Date_IsLeapYear(YEAR(DatetimeVal)),
+            Y = YEAR(DatetimeVal),
+            Q = SQL#.Date_Extract('Quarter',DatetimeVal),
+            M = SQL#.Date_Extract('Month',DatetimeVal),
+            W = SQL#.Date_Extract('Week',DatetimeVal),
+            D = SQL#.Date_Extract('Day',DatetimeVal),
+            DW = SQL#.Date_Extract('Weekday',DatetimeVal),
+            YYYYMM = CAST(LEFT(CAST(SQL#.Date_GetIntDate(DatetimeVal) AS char(8)),6) AS int),
+            YYYYMMDD = SQL#.Date_GetIntDate(DatetimeVal),
+            [MonthName] = DATENAME(month,DatetimeVal),
+            [DayName] = DATENAME(weekday,DatetimeVal),
+            FirstDayOfMonth = CAST(SQL#.Date_FirstDayOfMonth(DatetimeVal,0,0,0,0) AS date),
+            LastDayOfMonth = CAST(SQL#.Date_LastDayOfMonth(DatetimeVal,0,0,0,0) AS date),
+            FirstDayOfQuarter = CAST(DATEADD(qq,DATEDIFF(qq,0,DatetimeVal),0) AS date),
+            LastDayOfQuarter = CAST(DATEADD(qq,DATEDIFF(qq,-1,DatetimeVal),-1) AS date),
+            FirstDayOfYear = CAST(SQL#.Date_NewDateTime(YEAR(DatetimeVal),1,1,0,0,0,0) AS date),
+            LastDayOfYear = CAST(SQL#.Date_NewDateTime(YEAR(DatetimeVal),12,31,0,0,0,0) AS date),
+            HolidayName = CASE
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,4) = 0 THEN 'New Year''s Day'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,8) = 0 THEN 'New Year''s Day'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,16) = 0 THEN 'New Year''s Day'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,32) = 0 THEN 'Martin Luther King Jr. Day'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,64) = 0 THEN 'Memorial Day'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,256) = 0 THEN 'Independence Day'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,512) = 0 THEN 'Independence Day'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,1024) = 0 THEN 'Labor Day'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,2048) = 0 THEN 'Thanksgiving Day'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,8192) = 0 THEN 'Christmas'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,16384) = 0 THEN 'Christmas'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,32768) = 0 THEN 'Christmas'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,33554432) = 0 THEN 'Veterans Day'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,67108864) = 0 THEN 'Veterans Day'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,134217728) = 0 THEN 'Veterans Day'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,8388608) = 0 THEN 'Presidents Day'
+                WHEN SQL#.Date_IsBusinessDay(DatetimeVal,16777216) = 0 THEN 'Columbus Day'
+                ELSE NULL
+            END
+        FROM SQL#.Util_GenerateDateTimeRange('1/1/1900','12/31/2099',1,'day');
+
+        /* update business day counter */
+        UPDATE c
+        SET BD = bd.BusinessDayNum
+        FROM Calendar c
+            INNER JOIN  (
+                        SELECT 
+                            DatetimeVal CalendarDate,
+                             ROW_NUMBER() OVER(PARTITION BY CAST(LEFT(CAST(SQL#.Date_GetIntDate(DatetimeVal) AS char(8)),6) AS int) ORDER BY DatetimeVal) BusinessDayNum
+                        FROM SQL#.Util_GenerateDateTimeRange('1/1/1900','12/31/2099',1,'day')
+                        WHERE SQL#.Date_IsBusinessDay(DatetimeVal,260108159) = 1  -- include Sat & Sun
+                        ) bd
+                ON c.CalendarDate = bd.CalendarDate;
+
+        /* update monthly business days */
+        UPDATE c
+        SET FirstBusinessDayOfMonth = bd.FirstBusinessDayOfMonth,
+            LastBusinessDayOfMonth = bd.LastBusinessDayOfMonth
+        FROM Calendar c
+            INNER JOIN  (
+                        SELECT 
+                            YYYYMM,
+                            MIN(CalendarDate) FirstBusinessDayOfMonth,
+                            MAX(CalendarDate) LastBusinessDayOfMonth
+                        FROM Calendar
+                        WHERE BD IS NOT NULL
+                        GROUP BY YYYYMM
+                        ) bd
+                ON c.YYYYMM = bd.YYYYMM;
+
+        /* update quarterly business days */
+        UPDATE c
+        SET FirstBusinessDayOfQuarter = bd.FirstBusinessDayOfQuarter,
+            LastBusinessDayOfQuarter = bd.LastBusinessDayOfQuarter
+        FROM Calendar c
+            INNER JOIN  (
+                        SELECT 
+                            Y,
+                            Q,
+                            MIN(CalendarDate) FirstBusinessDayOfQuarter,
+                            MAX(CalendarDate) LastBusinessDayOfQuarter
+                        FROM Calendar
+                        WHERE BD IS NOT NULL
+                        GROUP BY Y,Q
+                        ) bd
+                ON c.Y = bd.Y
+                AND c.Q = bd.Q;
+
+        /* update yearly business days*/
+        UPDATE c
+        SET FirstBusinessDayOfYear = bd.FirstBusinessDayOfYear,
+            LastBusinessDayOfYear = bd.LastBusinessDayOfYear
+        FROM Calendar c
+            INNER JOIN  (
+                        SELECT 
+                            Y,
+                            MIN(CalendarDate) FirstBusinessDayOfYear,
+                            MAX(CalendarDate) LastBusinessDayOfYear
+                        FROM Calendar
+                        WHERE BD IS NOT NULL
+                        GROUP BY Y
+                        ) bd
+                ON c.Y = bd.Y;
+
+        UPDATE Calendar
+        SET BDM = SQL#.Date_BusinessDays(FirstDayOfMonth,LastDayOfMonth,260108159); -- include sat & sun
+
+        /* make columns not null */
+        ALTER TABLE Calendar ALTER COLUMN FirstBusinessDayOfMonth date NOT NULL;
+        ALTER TABLE Calendar ALTER COLUMN LastBusinessDayOfMonth date NOT NULL;
+        ALTER TABLE Calendar ALTER COLUMN FirstBusinessDayOfQuarter date NOT NULL;
+        ALTER TABLE Calendar ALTER COLUMN LastBusinessDayOfQuarter date NOT NULL;
+        ALTER TABLE Calendar ALTER COLUMN FirstBusinessDayOfYear date NOT NULL;
+        ALTER TABLE Calendar ALTER COLUMN LastBusinessDayOfYear date NOT NULL;
+        ALTER TABLE Calendar ALTER COLUMN BDM smallint NOT NULL;
+
+	END TRY
+	BEGIN CATCH
+
+	   BEGIN
+
+			-- Declare local variables so we can return them to the caller			
+			DECLARE @err_msg varchar(1000),
+					@err_severity int;
+			
+			SELECT	@err_msg = ERROR_MESSAGE(),
+					@err_severity = ERROR_SEVERITY();
+
+			-- This will forcibly rollback a transaction that is marked as uncommitable
+			IF (XACT_STATE()) = -1 AND @@TRANCOUNT > 0
+				ROLLBACK TRANSACTION
+
+		END
+
+		-- Return error message to calling code via @@ERROR and error number via return code
+		RAISERROR (@err_msg, @err_severity, 1)
+
+	END CATCH
 GO
 
-/* update business day counter */
-UPDATE c
-SET BD = bd.BusinessDayNum
-FROM Calendar c
-    INNER JOIN  (
-                SELECT 
-                    DatetimeVal CalendarDate,
-                     ROW_NUMBER() OVER(PARTITION BY CAST(LEFT(CAST(SQL#.Date_GetIntDate(DatetimeVal) AS char(8)),6) AS int) ORDER BY DatetimeVal) BusinessDayNum
-                FROM SQL#.Util_GenerateDateTimeRange('1/1/1900','12/31/2099',1,'day')
-                WHERE SQL#.Date_IsBusinessDay(DatetimeVal,260108159) = 1  -- include Sat & Sun
-                ) bd
-        ON c.CalendarDate = bd.CalendarDate;
-GO
-
-/* update monthly business days */
-UPDATE c
-SET FirstBusinessDayOfMonth = bd.FirstBusinessDayOfMonth,
-    LastBusinessDayOfMonth = bd.LastBusinessDayOfMonth
-FROM Calendar c
-    INNER JOIN  (
-                SELECT 
-                    YYYYMM,
-                    MIN(CalendarDate) FirstBusinessDayOfMonth,
-                    MAX(CalendarDate) LastBusinessDayOfMonth
-                FROM Calendar
-                WHERE BD IS NOT NULL
-                GROUP BY YYYYMM
-                ) bd
-        ON c.YYYYMM = bd.YYYYMM
-GO
-
-/* update quarterly business days */
-UPDATE c
-SET FirstBusinessDayOfQuarter = bd.FirstBusinessDayOfQuarter,
-    LastBusinessDayOfQuarter = bd.LastBusinessDayOfQuarter
-FROM Calendar c
-    INNER JOIN  (
-                SELECT 
-                    Y,
-                    Q,
-                    MIN(CalendarDate) FirstBusinessDayOfQuarter,
-                    MAX(CalendarDate) LastBusinessDayOfQuarter
-                FROM Calendar
-                WHERE BD IS NOT NULL
-                GROUP BY Y,Q
-                ) bd
-        ON c.Y = bd.Y
-        AND c.Q = bd.Q
-GO
-
-/* update yearly business days*/
-UPDATE c
-SET FirstBusinessDayOfYear = bd.FirstBusinessDayOfYear,
-    LastBusinessDayOfYear = bd.LastBusinessDayOfYear
-FROM Calendar c
-    INNER JOIN  (
-                SELECT 
-                    Y,
-                    MIN(CalendarDate) FirstBusinessDayOfYear,
-                    MAX(CalendarDate) LastBusinessDayOfYear
-                FROM Calendar
-                WHERE BD IS NOT NULL
-                GROUP BY Y
-                ) bd
-        ON c.Y = bd.Y
-GO
-
-UPDATE Calendar
-SET BDM = SQL#.Date_BusinessDays(FirstDayOfMonth,LastDayOfMonth,260108159) -- include sat & sun
-GO
-
-/* make columns not null */
-ALTER TABLE Calendar ALTER COLUMN FirstBusinessDayOfMonth date NOT NULL;
-ALTER TABLE Calendar ALTER COLUMN LastBusinessDayOfMonth date NOT NULL;
-ALTER TABLE Calendar ALTER COLUMN FirstBusinessDayOfQuarter date NOT NULL;
-ALTER TABLE Calendar ALTER COLUMN LastBusinessDayOfQuarter date NOT NULL;
-ALTER TABLE Calendar ALTER COLUMN FirstBusinessDayOfYear date NOT NULL;
-ALTER TABLE Calendar ALTER COLUMN LastBusinessDayOfYear date NOT NULL;
-ALTER TABLE Calendar ALTER COLUMN BDM smallint NOT NULL;
-GO
 
 /* Add metadata */
 EXEC sp_addextendedproperty @name = N'MS_Description', @value = N'Utility calendar table with dates from 1/1/1900 to 12/31/2999.  The table and columns are pretty self explanatory, except for the logic for the holidays.  The table identifies these holidays: New Years Day, Martin Luther King Jr Day, Memorial Day, Independence Day, Labor Day, Veterans Day, Thanksgiving, Christmas.', @level0type = N'SCHEMA', @level0name = 'dbo', @level1type = N'TABLE',  @level1name = 'Calendar';
